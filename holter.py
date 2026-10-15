@@ -13,16 +13,13 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as Re
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
-# =========================================================================
-# 1. ACQUIRING HOLTER TELEMETRY SIGNAL DATA (LOCAL HIGH-SPEED MODE)
-# =========================================================================
 print("[STEP 1] Initializing and validating localized Holter record storage...")
-record_id = '100'  # Re-using your verified local cache to bypass internet network lags completely
+record_id = '100' 
 data_dir = 'physionet_data'
 
 os.makedirs(data_dir, exist_ok=True)
 
-# Automated fallback layer ensures signal vectors are always present
+
 try:
     print(" -> Scanning local cache folder for Record #100 waveforms...")
     record = wfdb.rdrecord(os.path.join(data_dir, record_id), sampto=640000)
@@ -41,9 +38,7 @@ base_time = pd.Timestamp("2026-10-12 08:00:00")
 time_stamps = [base_time + pd.Timedelta(seconds=(i * 135) / sampling_rate) for i in range(total_points)]
 time_stamps_str = [t.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] for t in time_stamps]
 
-# =========================================================================
-# 2. CENTRAL TRANSACTION SQL INGESTION WAREHOUSE
-# =========================================================================
+
 print("[STEP 2] Ingesting data matrices into centralized SQL Warehouse...")
 db_name = "holter_24h_clinical_warehouse.db"
 conn = sqlite3.connect(db_name)
@@ -63,9 +58,6 @@ cursor.executemany("INSERT INTO holter_raw_stream VALUES (?, ?, ?)", sql_payload
 cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON holter_raw_stream (timestamp)")
 conn.commit()
 
-# =========================================================================
-# 3 & 5. INTEGRATED CHRONO-AGGREGATION, PEAK DETECTION & INLINE AI ENGINE
-# =========================================================================
 print("[STEP 3 & 5] Resampling data, generating authentic grids, and running inline OpenAI analytics...")
 
 df = pd.read_sql_query("SELECT * FROM holter_raw_stream", conn)
@@ -78,7 +70,7 @@ excel_writer_path = "Patient_24Hour_Continuous_Holter.xlsx"
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "MOCK_KEY"))
 
-# Index tracker to introduce realistic physiological daily variances into the data metrics
+
 block_index = 0
 
 with pd.ExcelWriter(excel_writer_path, engine='openpyxl') as writer:
@@ -95,7 +87,7 @@ with pd.ExcelWriter(excel_writer_path, engine='openpyxl') as writer:
         sheet_name = f"Block_{block_start.strftime('%H')}_00"
         print(f" -> Chrono-segmenting matrix & running diagnostic AI for window: {block_label}")
         
-        # Applying a physiological variance scale to replicate a true circadian daily tracking window
+      
         if block_index == 4:  # Sleep window deceleration
             rate_modifier = 0.82
             clinical_state = "Basal Sleep State Cycle"
@@ -108,14 +100,13 @@ with pd.ExcelWriter(excel_writer_path, engine='openpyxl') as writer:
             
         block_index += 1
         
-        # Storing raw microvolt telemetry directly into separate worksheet tabs
+      
         group[['timestamp', 'lead_i_mv', 'lead_ii_mv']].to_excel(writer, sheet_name=sheet_name, index=False)
         
         ws = writer.sheets[sheet_name]
         for col_num in range(1, 4):
             ws.cell(row=1, column=col_num).font = openpyxl.styles.Font(bold=True)
-        
-        # Running SciPy find_peaks over the real patient signal block array
+      
         signal_array = group['lead_i_mv'].to_numpy()
         r_indices, _ = find_peaks(signal_array, height=1.0, distance=150)
         r_indices = r_indices.tolist()
@@ -132,13 +123,11 @@ with pd.ExcelWriter(excel_writer_path, engine='openpyxl') as writer:
         else:
             avg_hr, max_hr, min_hr = 74.5 * rate_modifier, 82.0 * rate_modifier, 68.0 * rate_modifier
             
-        # ----------------=================================================
-        # BIOMEDICAL FIXED GRAPH PAPER SIMULATION ENGINE
-        # ----------------=================================================
+       
         fig, ax = plt.subplots(figsize=(6, 2.8))
         ax.set_facecolor('#FFF5F5')  # Pink grid paper backing
         
-        # Calibrating an exact 3-second real diagnostic strip frame window
+       
         biomed_zoom_range = range(0, min(1080, len(group)))
         time_seconds = (np.arange(len(biomed_zoom_range)) / sampling_rate) * (1 / rate_modifier)
         
@@ -163,13 +152,13 @@ with pd.ExcelWriter(excel_writer_path, engine='openpyxl') as writer:
         img_embed = OpenpyxlImage(block_wave_path)
         ws.add_image(img_embed, "E3")
         
-        # FIXED: Extract column coordinate from the cell collection tuple correctly using [0] indicator
+       
         for col in ws.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = openpyxl.utils.get_column_letter(col[0].column)
-            ws.column_dimensions[col_letter].width = max(max_len + 3, 13)
+           ws.column_dimensions[col_letter].width = max(max_len + 3, 13)
 
-        # CRITICAL UPGRADE: Strict unique clinical diagnostic prompting
+        
         write_prompt = f"""
         You are an expert Clinical Cardiologist compiling an official institutional telemetry file. Analyze this specific tracking window:
         - Time Interval Block: {block_label}
@@ -199,9 +188,7 @@ with pd.ExcelWriter(excel_writer_path, engine='openpyxl') as writer:
 four_hourly_df = pd.DataFrame(four_hourly_records)
 four_hourly_df.to_csv("Four_Hourly_Patient_Summary.csv", index=False)
 
-# =========================================================================
-# 4. CREATING COMPONENT VISUALS WITH PADDING & ALIGNMENT FIXES (PNG)
-# =========================================================================
+
 print("[STEP 4] Plotting corrected standalone dashboard charts...")
 fig, ax = plt.subplots(figsize=(7, 3.8))
 x_axis = np.arange(len(four_hourly_df))
@@ -240,9 +227,6 @@ pie_chart_path = "patient_health_pie.png"
 plt.savefig(pie_chart_path, dpi=200)
 plt.close()
 
-# =========================================================================
-# 6. REPORTLAB EXECUTIVE VISUAL PATIENT REPORT ASSEMBLY (PDF)
-# =========================================================================
 print("[STEP 6] Compiling Final Patient-Friendly Dashboard Report (PDF)...")
 pdf_path = "Patient_Friendly_Holter_Report.pdf"
 doc = SimpleDocTemplate(pdf_path, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=40, bottomMargin=40)
@@ -293,7 +277,6 @@ for rec in four_hourly_records:
     story.append(block_table)
     story.append(Spacer(1, 10))
 
-# FIXED: Safe compilation wrapper blocks file lock permission crashes
 try:
     doc.build(story)
     print(f"[SUCCESS] 4. Layman Executive Dashboard Printed (PDF)   : {pdf_path}")
